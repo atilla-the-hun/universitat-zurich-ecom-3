@@ -5,7 +5,7 @@ import { Mic, MicOff, Phone } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Toggle } from "./ui/toggle";
 import MicFFT from "./MicFFT";
-import { cn } from "@/utils";
+import { cn } from "utils";
 
 export default function Controls() {
   const { disconnect, status, isMuted, unmute, mute, micFft } = useVoice();
