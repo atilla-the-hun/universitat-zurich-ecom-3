@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
-import { fetchWeather } from '@/utils/fetchWeather';
-import { fetchProducts } from '@/utils/fetchProducts'; // Import the fetchProducts function
+import { fetchWeather } from '../../../utils/fetchWeather';
+import { fetchProducts } from '../../../utils/fetchProducts';  // Import the fetchProducts function
 
 export async function POST(request: Request) {
   const { url } = request;
