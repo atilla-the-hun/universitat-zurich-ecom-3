@@ -1,0 +1,36 @@
+{
+  "type": "object",
+  "required": ["searchTerm"],
+  "properties": {
+    "searchTerm": {
+      "type": "string",
+      "description": "The term that was searched for on eBay"
+    },
+    "productLinks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "link": {
+            "type": "string",
+            "description": "The URL of the product page"
+          },
+          "imageUrl": {
+            "type": "string",
+            "description": "The URL of the product image"
+          },
+          "price": {
+            "type": "string",
+            "description": "The price of the product"
+          },
+          "description": {
+            "type": "string",
+            "description": "The description of the product"
+          }
+        },
+        "required": ["link", "imageUrl", "price", "description"]
+      },
+      "description": "An array of objects containing product links, image URLs, prices, and descriptions"
+    }
+  }
+}

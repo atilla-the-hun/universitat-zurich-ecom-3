@@ -1,0 +1,68 @@
+{
+  "type": "object",
+  "required": ["searchTerm"],
+  "properties": {
+    "searchTerm": {
+      "type": "string",
+      "description": "The term that was searched for"
+    },
+    "categories": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "description": "The category of the product"
+      },
+      "description": "An array of categories that the search term should match"
+    },
+    "productLinks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "link": {
+            "type": "string",
+            "description": "The URL of the product page"
+          },
+          "imageUrl": {
+            "type": "string",
+            "description": "The URL of the product image"
+          },
+          "price": {
+            "type": "string",
+            "description": "The price of the product"
+          },
+          "description": {
+            "type": "string",
+            "description": "The description of the product"
+          },
+          "flavor": {
+            "type": "string",
+            "description": "The flavor of the product"
+          },
+          "ingredients": {
+            "type": "string",
+            "description": "The ingredients of the product"
+          },
+          "weight": {
+            "type": "string",
+            "description": "The weight of the product"
+          },
+          "quantity": {
+            "type": "number",
+            "description": "The quantity of the product"
+          },
+          "brand": {
+            "type": "string",
+            "description": "The brand of the product"
+          },
+          "type": {
+            "type": "string",
+            "description": "The type of the product"
+          }
+        },
+        "required": ["link", "imageUrl", "price", "description", "flavor", "ingredients", "weight", "quantity", "brand", "type"]
+      },
+      "description": "An array of objects containing product links, image URLs, prices, descriptions, flavors, ingredients, weights, quantities, brands, and types"
+    }
+  }
+}
