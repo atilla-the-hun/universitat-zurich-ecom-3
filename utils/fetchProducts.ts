@@ -1,4 +1,4 @@
-
+import "server-only";
 import { getEbayAuthToken } from './ebayAuth';
 
 // Matches the structure in ebay_search_schema.json for productLinks items
