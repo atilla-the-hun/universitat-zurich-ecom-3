@@ -1,23 +1,25 @@
 import "server-only";
+import { getEbayAuthToken } from './ebayAuth';
 
+// Matches the structure in ebay_search_schema.json for productLinks items
 interface ProductInfo {
+  link: string;
   imageUrl: string;
-  linkText: string;
-  productUrl: string;
-  price: string; // Added price field
+  price: string;
+  description: string;
 }
 
 interface ProductSearchResult {
   success: boolean;
   data?: {
     searchTerm: string;
-    products: ProductInfo[];
+    products: ProductInfo[]; // This will be 'productLinks' in the final JSON output for Hume
   };
   error?: string;
 }
 
 /**
- * Function which consumes the eBay Finding API to get products matching a specified search term
+ * Function which consumes the eBay Buy API to get products matching a specified search term
  *
  * @param parameters object which includes the searchTerm
  * @returns a ProductSearchResult object
@@ -25,54 +27,58 @@ interface ProductSearchResult {
 export const fetchProducts = async (parameters: string): Promise<ProductSearchResult> => {
   const args = JSON.parse(parameters) as { searchTerm: string };
 
-  const keywords = encodeURIComponent(args.searchTerm);
-  const ebayAppId = process.env.EBAY_APP_ID;
-  const isSandbox = process.env.EBAY_SANDBOX?.toLowerCase() === 'true';
-
-  if (!ebayAppId) {
-    return {
-      success: false,
-      error: 'EBAY_APP_ID is not set in the environment variables'
-    };
-  }
-
-  const ebayApiUrl = isSandbox
-    ? `https://svcs.sandbox.ebay.com/services/search/FindingService/v1`
-    : `https://svcs.ebay.com/services/search/FindingService/v1`;
-
-  const fullUrl = `${ebayApiUrl}` +
-    `?OPERATION-NAME=findItemsByKeywords` +
-    `&SERVICE-VERSION=1.0.0` +
-    `&SECURITY-APPNAME=${ebayAppId}` +
-    `&RESPONSE-DATA-FORMAT=JSON` +
-    `&REST-PAYLOAD` +
-    `&keywords=${keywords}`;
-
   try {
-    const response = await fetch(fullUrl, { method: 'GET' });
-    
+    const keywords = encodeURIComponent(args.searchTerm);
+    const isSandbox = process.env.EBAY_SANDBOX?.toLowerCase() === 'true';
+    const marketplaceId = process.env.EBAY_MARKETPLACE_ID || 'EBAY_US';
+
+    // Get OAuth token
+    const accessToken = await getEbayAuthToken();
+
+    const ebayApiUrl = isSandbox
+      ? 'https://api.sandbox.ebay.com/buy/browse/v1/item_summary/search'
+      : 'https://api.ebay.com/buy/browse/v1/item_summary/search';
+
+    const url = new URL(ebayApiUrl);
+    url.searchParams.append('q', keywords);
+    url.searchParams.append('limit', '20'); // You can adjust the limit
+    // Example filter: filter for new or used items. Adjust as needed.
+    // url.searchParams.append('filter', 'conditions:{NEW|USED}'); 
+
+    const response = await fetch(url.toString(), {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'X-EBAY-C-MARKETPLACE-ID': marketplaceId,
+        'Content-Type': 'application/json'
+        // 'X-EBAY-C-ENDUSERCTX': 'affiliateCampaignId=<YOUR_CAMPAIGN_ID>,affiliateReferenceId=<YOUR_REFERENCE_ID>' // Optional for tracking
+      }
+    });
+
     if (!response.ok) {
-      throw new Error(`API call failed with status code ${response.status}`);
+      const errorText = await response.text();
+      console.error(`eBay API call failed with status ${response.status}: ${errorText}`);
+      throw new Error(`API call failed: ${response.status} - ${errorText}`);
     }
 
     const responseJson = await response.json();
-    
-    // Check if items are present in the response
-    const items = responseJson.findItemsByKeywordsResponse?.[0]?.searchResult?.[0]?.item || [];
 
-    // Extract product information
-    const products: ProductInfo[] = items.map((item: any) => ({
-      imageUrl: item.galleryURL?.[0] || '',
-      linkText: 'Explore Product',
-      productUrl: item.viewItemURL?.[0] || '',
-      price: item.sellingStatus?.[0]?.currentPrice?.[0]?.__value__ || 'N/A' // Extract price
-    })).filter((product: ProductInfo) => product.imageUrl && product.productUrl);
+    // Map the new API response to your ProductInfo structure
+    const products: ProductInfo[] = responseJson.itemSummaries?.map((item: any) => ({
+      link: item.itemWebUrl || '',
+      imageUrl: item.image?.imageUrl || '', // Ensure image and imageUrl exist
+      price: item.price?.value ? `${item.price.currency} ${item.price.value}` : 'N/A',
+      description: item.title || 'No description available'
+    })) || [];
+
+    // Filter out products that might be missing essential info after mapping
+    const validProducts = products.filter(product => product.link && product.imageUrl && product.description);
 
     return {
       success: true,
       data: {
         searchTerm: args.searchTerm,
-        products: products
+        products: validProducts // This array will be used as 'productLinks'
       }
     };
   } catch (error) {
