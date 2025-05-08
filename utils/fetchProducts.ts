@@ -37,7 +37,7 @@ export const fetchProducts = async (parameters: string): Promise<ProductSearchRe
   }
 
   const ebayApiUrl = isSandbox
-    ? `https://svcs.sandbox.ebay.com/services/search/FindingService/v1`
+    ? `https://api.ebay.com/buy/browse/v1`
     : `https://svcs.ebay.com/services/search/FindingService/v1`;
 
   const fullUrl = `${ebayApiUrl}` +
