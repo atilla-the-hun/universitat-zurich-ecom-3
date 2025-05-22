@@ -26,9 +26,42 @@ interface ProductSearchResult {
  */
 export const fetchProducts = async (parameters: string): Promise<ProductSearchResult> => {
   const args = JSON.parse(parameters) as { searchTerm: string };
+  console.log(`[fetchProducts] Original searchTerm: "${args.searchTerm}"`);
 
   try {
-    const keywords = encodeURIComponent(args.searchTerm);
+    let apiSearchTerm = args.searchTerm;
+    const lowerSearchTerm = args.searchTerm.toLowerCase();
+
+    // Improved detection for "16 pack" or "sixteen pack/count" style searches
+    const hasSixteen = lowerSearchTerm.includes("16") || lowerSearchTerm.includes("sixteen");
+    const hasPackIndicator = lowerSearchTerm.includes("pack") || lowerSearchTerm.includes("pk") || lowerSearchTerm.includes("count");
+    const isSixteenPackSearch = hasSixteen && hasPackIndicator;
+    console.log(`[fetchProducts] isSixteenPackSearch: ${isSixteenPackSearch}`);
+
+    if (isSixteenPackSearch) {
+      // Attempt to extract base product type, e.g., "AA batteries", "AAA batteries"
+      // This is a simplified approach.
+      if (lowerSearchTerm.includes("aaa")) {
+        apiSearchTerm = "AAA batteries";
+      } else if (lowerSearchTerm.includes("aa")) {
+        apiSearchTerm = "AA batteries";
+      } else {
+        apiSearchTerm = "batteries"; // Fallback if AA/AAA not clearly specified
+      }
+      // More robust extraction could involve removing quantity/pack words:
+      // apiSearchTerm = lowerSearchTerm
+      //   .replace(/16|sixteen/gi, "")
+      //   .replace(/pack|pk|count/gi, "")
+      //   .replace(/\s+/g, " ") // Normalize spaces
+      //   .trim();
+      // if (!apiSearchTerm.toLowerCase().includes("batteries")) {
+      //   apiSearchTerm = (apiSearchTerm + " batteries").trim();
+      // }
+      // if (apiSearchTerm === "batteries") apiSearchTerm = "AA batteries"; // Default if too generic
+    }
+    console.log(`[fetchProducts] API search term sent to eBay: "${apiSearchTerm}"`);
+
+    const keywords = encodeURIComponent(apiSearchTerm);
     const isSandbox = process.env.EBAY_SANDBOX?.toLowerCase() === 'true';
     const marketplaceId = process.env.EBAY_MARKETPLACE_ID || 'EBAY_US';
 
@@ -41,7 +74,10 @@ export const fetchProducts = async (parameters: string): Promise<ProductSearchRe
 
     const url = new URL(ebayApiUrl);
     url.searchParams.append('q', keywords);
-    url.searchParams.append('limit', '20'); // You can adjust the limit
+    url.searchParams.append('limit', '50'); // Increased limit for more results to filter
+    // url.searchParams.append('category_ids', '20710'); // Temporarily removed category for batteries to test
+    // url.searchParams.append('sort', 'price'); // Temporarily removed sort by price to test
+    url.searchParams.append('safeSearch', 'false'); // Added safeSearch=false
     // Example filter: filter for new or used items. Adjust as needed.
     // url.searchParams.append('filter', 'conditions:{NEW|USED}'); 
 
@@ -62,22 +98,43 @@ export const fetchProducts = async (parameters: string): Promise<ProductSearchRe
     }
 
     const responseJson = await response.json();
+    console.log(`[fetchProducts] Raw items from eBay API for "${apiSearchTerm}": ${responseJson.itemSummaries?.length || 0}`);
 
     // Map the new API response to your ProductInfo structure
-    const products: ProductInfo[] = responseJson.itemSummaries?.map((item: any) => ({
+    let mappedProducts: ProductInfo[] = responseJson.itemSummaries?.map((item: any) => ({
       link: item.itemWebUrl || '',
       imageUrl: item.image?.imageUrl || '', // Ensure image and imageUrl exist
       price: item.price?.value ? `${item.price.currency} ${item.price.value}` : 'N/A',
       description: item.title || 'No description available'
     })) || [];
+    console.log(`[fetchProducts] Mapped products before any local filtering: ${mappedProducts.length}`);
+    if (mappedProducts.length > 0) {
+      console.log('[fetchProducts] Titles of mapped products (before local filter):');
+      mappedProducts.forEach((product, index) => {
+        console.log(`  ${index + 1}: ${product.description}`);
+      });
+    }
+
+    // If it was a "16 pack" style search, filter mappedProducts by title content
+    if (isSixteenPackSearch) {
+      mappedProducts = mappedProducts.filter(product => {
+        const titleLower = product.description.toLowerCase();
+        // Check for "16" or "sixteen" and ("pack" or "pk" or "count")
+        const titleHasSixteen = titleLower.includes("16") || titleLower.includes("sixteen");
+        const titleHasPackIndicator = titleLower.includes("pack") || titleLower.includes("pk") || titleLower.includes("count");
+        return titleHasSixteen && titleHasPackIndicator;
+      });
+      console.log(`[fetchProducts] Mapped products after 'isSixteenPackSearch' filter: ${mappedProducts.length}`);
+    }
 
     // Filter out products that might be missing essential info after mapping
-    const validProducts = products.filter(product => product.link && product.imageUrl && product.description);
+    const validProducts = mappedProducts.filter(product => product.link && product.imageUrl && product.description);
+    console.log(`[fetchProducts] Final valid products count: ${validProducts.length}`);
 
     return {
       success: true,
       data: {
-        searchTerm: args.searchTerm,
+        searchTerm: args.searchTerm, // Return the original search term
         products: validProducts // This array will be used as 'productLinks'
       }
     };
